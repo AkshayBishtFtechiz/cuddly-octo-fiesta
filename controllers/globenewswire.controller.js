@@ -70,6 +70,7 @@ exports.getAllGlobeNewsWire = async (req, res) => {
         process.env.NODE_ENV === "production"
           ? process.env.PUPPETEER_EXECUTABLE_PATH
           : puppeteer.executablePath(),
+          headless: "new"
     });
     const page = await browser.newPage();
     await page.setCacheEnabled(false);
