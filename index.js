@@ -37,6 +37,10 @@ connection
 
 // Database connection Ends
 
+app.get('/test', (req, res) => {
+  res.send("API working on TEST!")
+})
+
 app.listen(PORT, () => { console.log(`Listening to PORT: ${PORT}`)
 swaggerDocs(app, PORT)}
 );
