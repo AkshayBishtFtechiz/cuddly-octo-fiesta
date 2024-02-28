@@ -1,3 +1,4 @@
+require("dotenv").config();
 const PRNewsWireSchema = require("../Schema/PRNewsWireModel");
 const NewFirmsWireSchema = require("../Schema/NewFirmModel");
 const puppeteer = require("puppeteer");
@@ -21,7 +22,18 @@ exports.getAllPRNewsWire = async (req, res) => {
 
       const listed_firms = [...law_firms];
       
-      const browser = await puppeteer.launch({ headless: "new" });
+      const browser = await puppeteer.launch({
+        args: [
+          "--disable-setuid-sandbox",
+          "--no-sandbox",
+          "--single-process",
+          "--no-zygote",
+        ],
+        executablePath:
+          process.env.NODE_ENV === "production"
+            ? process.env.PUPPETEER_EXECUTABLE_PATH
+            : puppeteer.executablePath(),
+      });
 
       const page = await browser.newPage();
 
