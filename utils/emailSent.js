@@ -166,7 +166,7 @@ const emailSent = async (req, res, getAllNews, firmData, newsSchema, flag) => {
             // Define the email options
             const mailOptions = {
               from: "blocklevitonalerts@gmail.com",
-              to: "akshay.bisht1@ftechiz.com",
+              to: "jake@blockleviton.com", 
               subject: `Alert: First Press Release for ${data?.payload?.tickerSymbol}`,
               html: `<p><span style='font-weight:bold;'>${data.firm}</span> issued a press release for <span style='font-weight:bold;'>${data?.payload?.tickerSymbol}</span>. This is the first press release observed for <span style='font-weight:bold;'>${data?.payload?.tickerSymbol}</span> in the past 60 days.<br/><br/>View the release here: ${data?.payload?.urlToRelease}.</p>`,
             };
