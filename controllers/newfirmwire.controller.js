@@ -37,7 +37,7 @@ exports.createNewFirmWire = async (req, res) => {
             globenewswire.getAllGlobeNewsWire(req, res);
             newsfilewire.getAllNewsFile(req, res);
             prnewswire.getAllPRNewsWire(req, res);
-
+  
             res.send(getNewFirm);
           })
           .catch((err) => {

@@ -1,30 +1,24 @@
-require("dotenv").config();
-const GlobeNewsWireSchema = require("../Schema/GlobeNewsWireModel");
-const puppeteer = require("puppeteer");
+const axios = require("axios");
 const cheerio = require("cheerio");
+const GlobeNewsWireSchema = require("../Schema/GlobeNewsWireModel");
 const moment = require("moment");
 const emailSent = require("../utils/emailSent");
 const { filterDays } = require("../utils/filterDays");
 const { v4: uuidv4 } = require("uuid");
 const NewFirmsWireSchema = require("../Schema/NewFirmModel");
 
-// GLOBE NEWS WIRE API
-
 exports.getAllGlobeNewsWire = async (req, res) => {
   const { flag } = req.body;
 
   try {
+    let law_firms = [];
+    let listed_firms = [];
     if (flag === true) {
-      var law_firms = [];
-      var getAllNewsFirm = await NewFirmsWireSchema.find()
-      
-      getAllNewsFirm?.forEach((response, index) => {
-        law_firms.push(response.firmName);
-      })
-      var listed_firms = [...law_firms];
-    }
-    else {
-      var law_firms = [
+      const getAllNewsFirm = await NewFirmsWireSchema.find();
+      law_firms = getAllNewsFirm.map((response) => encodeURIComponent(response.firmName));
+      listed_firms = getAllNewsFirm.map((response) => response.firmName);
+    } else {
+      law_firms = [
         "Berger%20Montague",
         "Bernstein%20Liebhard%20LLP",
         "Bronsteinδ%20Gewirtz%20&%20Grossmanδ%20LLC",
@@ -41,7 +35,7 @@ exports.getAllGlobeNewsWire = async (req, res) => {
         "The%20Rosen%20Law%20Firm%20PA",
       ];
   
-      var listed_firms = [
+      listed_firms = [
         "Berger Montague",
         "Bernstein Liebhard",
         "Bronstein, Gewirtz",
@@ -59,44 +53,19 @@ exports.getAllGlobeNewsWire = async (req, res) => {
       ];
     }
 
-    const browser = await puppeteer.launch({
-      args: [
-        "--disable-setuid-sandbox",
-        "--no-sandbox",
-        "--single-process",
-        "--no-zygote",
-      ],
-      executablePath:
-        process.env.NODE_ENV === "production"
-          ? process.env.PUPPETEER_EXECUTABLE_PATH
-          : puppeteer.executablePath(),
-    });
-    const page = await browser.newPage();
-    await page.setCacheEnabled(false);
-
     const firmData = [];
 
     for (let i = 0; i < law_firms.length; i++) {
       const firm = law_firms[i];
-      const encodedFirm = encodeURI(firm);
-      const globeNewsWireUrl = `https://www.globenewswire.com/en/search/organization/${encodedFirm}?page=1`;
-      await page.goto(globeNewsWireUrl, {
-        waitUntil: "domcontentloaded",
-        timeout: 300000,
-      });
-      // await page.waitForSelector(".pagging-list-item", { timeout: 300000 });
-      await page.waitForSelector(".pagging-list-item");
-
-      const htmlContent = await page.content();
-      const $ = cheerio.load(htmlContent);
+      const globeNewsWireUrl = `https://www.globenewswire.com/en/search/organization/${firm}?page=1`;
+      const response = await axios.get(globeNewsWireUrl);
+      const $ = cheerio.load(response.data);
 
       const firmNewsItems = $(".pagging-list-item")
         .map((index, element) => {
           const $item = $(element);
           const title = $item.find('[data-autid="article-url"]').text();
-          const date = $item
-            .find('[data-autid="article-published-date"]')
-            .text();
+          const date = $item.find('[data-autid="article-published-date"]').text();
           const link = $item.find('[data-autid="article-url"]').attr("href");
           const summary = $item.find('[data-autid="article-summary"]').text();
 
@@ -120,72 +89,70 @@ exports.getAllGlobeNewsWire = async (req, res) => {
         );
       });
 
-      const payload = filteredNewsItems
-        .map((newsItem) => {
-          const tickerMatch =
-            newsItem.summary.match(/\((NASDAQ|NYSE|OTCBB):([^\)]+)\)/) ||
-            newsItem.title.match(/\((NASDAQ|NYSE|OTCBB):([^\)]+)\)/);
-          const tickerSymbolMatch = (
-            tickerMatch ? tickerMatch[2].trim() : ""
-          ).match(/([^;\s]+)/);
-          const formattedDate = moment(newsItem.date, [
-            "MMM DD, YYYY",
-            "MMM DD, YYYY h:mm A",
-          ]).format("MMMM DD, YYYY");
-          const id = uuidv4();
+      const payload = filteredNewsItems.map((newsItem) => {
+        const tickerMatch =
+          newsItem.summary.match(/\((NASDAQ|NYSE|OTCBB):([^\)]+)\)/) ||
+          newsItem.title.match(/\((NASDAQ|NYSE|OTCBB):([^\)]+)\)/);
+        const tickerSymbolMatch = (
+          tickerMatch ? tickerMatch[2].trim() : ""
+        ).match(/([^;\s]+)/);
+        const formattedDate = moment(newsItem.date, [
+          "MMM DD, YYYY",
+          "MMM DD, YYYY h:mm A",
+        ]).format("MMMM DD, YYYY");
+        const id = uuidv4();
 
-          // Check if tickerSymbol and tickerIssuer are not blank
-          if (
-            (tickerSymbolMatch &&
-              tickerSymbolMatch[1] &&
-              newsItem.summary.includes("(NASDAQ:")) ||
-            newsItem.title.includes("(NASDAQ:")
-          ) {
-            return {
-              scrapId: id,
-              tickerSymbol: tickerSymbolMatch[1], // Extracted first ticker symbol
-              firmIssuing: law_firms[i],
-              serviceIssuedOn: "Globe News Wire", // Replace with actual service
-              dateTimeIssued: formattedDate, // Use the current date and time
-              urlToRelease: `https://www.globenewswire.com${newsItem.link}`,
-              tickerIssuer: "NASDAQ",
-            };
-          } else if (
-            (tickerSymbolMatch &&
-              tickerSymbolMatch[1] &&
-              newsItem.summary.includes("(NYSE:")) ||
-            newsItem.title.includes("(NYSE:")
-          ) {
-            return {
-              scrapId: id,
-              tickerSymbol: tickerSymbolMatch[1], // Extracted first ticker symbol
-              firmIssuing: law_firms[i],
-              serviceIssuedOn: "Globe News Wire", // Replace with actual service
-              dateTimeIssued: formattedDate, // Use the current date and time
-              urlToRelease: `https://www.globenewswire.com${newsItem.link}`,
-              tickerIssuer: "NYSE",
-            };
-          } else if (
-            (tickerSymbolMatch &&
-              tickerSymbolMatch[1] &&
-              newsItem.summary.includes("(OTCBB:")) ||
-            newsItem.title.includes("(OTCBB:")
-          ) {
-            return {
-              scrapId: id,
-              tickerSymbol: tickerSymbolMatch[1], // Extracted first ticker symbol
-              firmIssuing: law_firms[i],
-              serviceIssuedOn: "Globe News Wire", // Replace with actual service
-              dateTimeIssued: formattedDate, // Use the current date and time
-              urlToRelease: `https://www.globenewswire.com${newsItem.link}`,
-              tickerIssuer: "OTCBB",
-            };
-          } else {
-            // Handle the case where tickerSymbol or tickerIssuer is blank
-            return null;
-          }
-        })
-        .filter(Boolean); // Filter out null values
+        // Check if tickerSymbol and tickerIssuer are not blank
+        if (
+          (tickerSymbolMatch &&
+            tickerSymbolMatch[1] &&
+            newsItem.summary.includes("(NASDAQ:")) ||
+          newsItem.title.includes("(NASDAQ:")
+        ) {
+          return {
+            scrapId: id,
+            tickerSymbol: tickerSymbolMatch[1], // Extracted first ticker symbol
+            firmIssuing: listed_firms[i],
+            serviceIssuedOn: "Globe News Wire", // Replace with actual service
+            dateTimeIssued: formattedDate, // Use the current date and time
+            urlToRelease: `https://www.globenewswire.com${newsItem.link}`,
+            tickerIssuer: "NASDAQ",
+          };
+        } else if (
+          (tickerSymbolMatch &&
+            tickerSymbolMatch[1] &&
+            newsItem.summary.includes("(NYSE:")) ||
+          newsItem.title.includes("(NYSE:")
+        ) {
+          return {
+            scrapId: id,
+            tickerSymbol: tickerSymbolMatch[1], // Extracted first ticker symbol
+            firmIssuing: listed_firms[i],
+            serviceIssuedOn: "Globe News Wire", // Replace with actual service
+            dateTimeIssued: formattedDate, // Use the current date and time
+            urlToRelease: `https://www.globenewswire.com${newsItem.link}`,
+            tickerIssuer: "NYSE",
+          };
+        } else if (
+          (tickerSymbolMatch &&
+            tickerSymbolMatch[1] &&
+            newsItem.summary.includes("(OTCBB:")) ||
+          newsItem.title.includes("(OTCBB:")
+        ) {
+          return {
+            scrapId: id,
+            tickerSymbol: tickerSymbolMatch[1], // Extracted first ticker symbol
+            firmIssuing: listed_firms[i],
+            serviceIssuedOn: "Globe News Wire", // Replace with actual service
+            dateTimeIssued: formattedDate, // Use the current date and time
+            urlToRelease: `https://www.globenewswire.com${newsItem.link}`,
+            tickerIssuer: "OTCBB",
+          };
+        } else {
+          // Handle the case where tickerSymbol or tickerIssuer is blank
+          return null;
+        }
+      }).filter(Boolean); // Filter out null values
 
       // Save each document separately
       for (const newsData of payload) {
@@ -193,64 +160,26 @@ exports.getAllGlobeNewsWire = async (req, res) => {
       }
     }
 
-    /* firmData.push({
-      firm: "Berger Montague",
-      payload: {
-        tickerSymbol: "SERV",
-        firmIssuing: "Berger Montague",
-        serviceIssuedOn: "BusinessWire",
-        dateTimeIssued: "January 02, 2024",
-        urlToRelease:
-          "http://www.businesswire.com/news/home/20240101367342/zh-HK/",
-        tickerIssuer: "NYSE",
-      },
-    });
-
-    firmData.push({
-      firm: "Rosen",
-      payload: {
-        tickerSymbol: "BIDU",
-        firmIssuing: "Berger Montague",
-        serviceIssuedOn: "BusinessWire",
-        dateTimeIssued: "January 02, 2024",
-        urlToRelease:
-          "http://www.businesswire.com/news/home/20240101367342/zh-HK/",
-        tickerIssuer: "NYSE",
-      },
-    }); */
-
-    // Search news details 75 days before the current date and remove before 75 days news deyails
-
-    try {
-      const { targetDate, formattedTargetDate } = filterDays(75);
-      const last75DaysData = firmData.filter((newsDetails) => {
-        const allPRNewsDate = moment(
-          newsDetails?.payload.dateTimeIssued,
-          "MMMM DD, YYYY"
-        );
-        return targetDate < allPRNewsDate;
-      });
-      const getAllGlobeNewsWire = await GlobeNewsWireSchema.find();
-      emailSent(
-        req,
-        res,
-        getAllGlobeNewsWire,
-        last75DaysData,
-        GlobeNewsWireSchema,
-        flag
+    const { targetDate, formattedTargetDate } = filterDays(75);
+    const last75DaysData = firmData.filter((newsDetails) => {
+      const allPRNewsDate = moment(
+        newsDetails?.payload.dateTimeIssued,
+        "MMMM DD, YYYY"
       );
-      await browser.close();
-    } catch (error) {
-      console.error("Error:", error);
-      {
-        flag !== true && res.status(500).send("Internal Server Error");
-      }
-    }
+      return targetDate < allPRNewsDate;
+    });
+    const getAllGlobeNewsWire = await GlobeNewsWireSchema.find();
+    emailSent(
+      req,
+      res,
+      getAllGlobeNewsWire,
+      last75DaysData,
+      GlobeNewsWireSchema,
+      flag
+    );
   } catch (error) {
     console.error("Error:", error);
-    {
-      flag !== true && res.status(500).send("Internal Server Error");
-    }
+    flag !== true && res.status(500).send("Internal Server Error");
   }
 };
 
