@@ -39,10 +39,10 @@ const emailSent = async (req, res, getAllNews, firmData, newsSchema, flag) => {
       ) {
         // Check if the ticker symbol exists in the database
         const existingNews = await newsSchema.findOne({
-          "payload.tickerSymbol": data.payload.tickerSymbol
+          "payload.tickerSymbol": data.payload.tickerSymbol,
         });
 
-        if (!existingNews || !processedTickerSymbols.has(data.payload.tickerSymbol)) {
+        if (!existingNews && !processedTickerSymbols.has(data.payload.tickerSymbol)) {
           const newNews = new newsSchema({
             firm: data.firm,
             payload: data.payload,
@@ -67,7 +67,7 @@ const emailSent = async (req, res, getAllNews, firmData, newsSchema, flag) => {
             // Define the email options
             const mailOptions = {
               from: "blocklevitonalerts@gmail.com",
-              to: "jake@blockleviton.com",
+              to: "akshay.bisht1@ftechiz.com",
               subject: `Alert: First Press Release for ${data?.payload?.tickerSymbol}`,
               html: `<p><span style='font-weight:bold;'>${data.firm}</span> issued a press release for <span style='font-weight:bold;'>${data?.payload?.tickerSymbol}</span>. This is the first press release observed for <span style='font-weight:bold;'>${data?.payload?.tickerSymbol}</span> in the past 60 days.<br/><br/>View the release here: ${data?.payload?.urlToRelease}.</p>`,
             };
@@ -99,3 +99,4 @@ const emailSent = async (req, res, getAllNews, firmData, newsSchema, flag) => {
 };
 
 module.exports = emailSent;
+
