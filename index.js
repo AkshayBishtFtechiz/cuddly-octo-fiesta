@@ -2,6 +2,7 @@ require("dotenv").config();
 const cron = require("node-cron");
 const express = require("express");
 const mongoose = require("mongoose");
+const axios = require("axios");
 const app = express();
 const cors = require("cors");
 const PORT = 5000 || process.env.PORT;
@@ -24,6 +25,7 @@ const newsfilewire = require("./controllers/newsfile.controller.js");
 const prnewswire = require("./controllers/prnewswire.controller.js");
 
 const swaggerDocs = require("./swagger.js");
+
 
 app.use(cors());
 app.use(express.json());
@@ -54,15 +56,15 @@ app.get("/test", (req, res) => {
   res.send("API working on TEST!");
 });
 
+// Cron job for every 20 minutes
+
 cron.schedule("*/20 * * * *", () => {
-  app.get("/", async (req, res) => {
-    await accessWire.getAllAccessWire(req, res);
-    await businessWire.getAllBussinessWire(req, res);
-    await globenewswire.getAllGlobeNewsWire(req, res);
-    await newsfilewire.getAllNewsFile(req, res);
-    await prnewswire.getAllPRNewsWire(req, res);
-  });
-});
+  axios.get('https://cuddly-octo-fiesta.onrender.com/api/business-wire');
+  axios.get('https://cuddly-octo-fiesta.onrender.com/api/access-wire');
+  axios.get('https://cuddly-octo-fiesta.onrender.com/api/globe-news-wire');
+  axios.get('https://cuddly-octo-fiesta.onrender.com/api/pr-news-wire');
+  axios.get('https://cuddly-octo-fiesta.onrender.com/api/news-files');
+})
 
 app.listen(PORT, () => {
   console.log(`Listening to PORT: ${PORT}`);
