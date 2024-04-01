@@ -92,6 +92,7 @@ const emailSent = async (req, res, getAllNews, firmData, newsSchema, flag) => {
         }
       }, 1000);
     } else {
+      console.log("InsideElse")
       const response = await newsSchema.find();
       if (!flag) {
         res.send(response);
